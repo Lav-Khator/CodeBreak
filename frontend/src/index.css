@@ -1,0 +1,134 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Custom scrollbar ────────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: #0A0A12; }
+::-webkit-scrollbar-thumb { background: #8B5CF6; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #A78BFA; }
+
+/* ── Base resets ─────────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: 'Inter', system-ui, sans-serif;
+  background-color: #030307;
+  color: #e2e8f0;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+/* ── Glassmorphism card ───────────────────────────────────────────────────────── */
+.glass {
+  background: rgba(15, 15, 26, 0.7);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(139, 92, 246, 0.15);
+}
+
+/* ── Gradient text ───────────────────────────────────────────────────────────── */
+.gradient-text-purple {
+  background: linear-gradient(135deg, #A78BFA, #8B5CF6, #6D28D9);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.gradient-text-fire {
+  background: linear-gradient(135deg, #FCD34D, #F97316, #EF4444);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.gradient-text-brand {
+  background: linear-gradient(135deg, #8B5CF6, #EC4899, #F97316);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ── Neon glow effects ────────────────────────────────────────────────────────── */
+.glow-purple {
+  box-shadow: 0 0 20px rgba(139, 92, 246, 0.4), 0 0 60px rgba(139, 92, 246, 0.1);
+}
+
+.glow-red {
+  box-shadow: 0 0 20px rgba(239, 68, 68, 0.4), 0 0 60px rgba(239, 68, 68, 0.1);
+}
+
+/* ── Input focus ring override ───────────────────────────────────────────────── */
+input:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.5);
+}
+
+/* ── Button base ──────────────────────────────────────────────────────────────── */
+.btn-primary {
+  background: linear-gradient(135deg, #7C3AED, #8B5CF6, #6D28D9);
+  background-size: 200% 200%;
+  transition: all 0.3s ease;
+}
+
+.btn-primary:hover {
+  background-position: right center;
+  box-shadow: 0 0 30px rgba(139, 92, 246, 0.5);
+  transform: translateY(-1px);
+}
+
+.btn-primary:active { transform: translateY(0); }
+
+/* ── Animated background grid ─────────────────────────────────────────────────── */
+.bg-grid {
+  background-image:
+    linear-gradient(rgba(139, 92, 246, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(139, 92, 246, 0.03) 1px, transparent 1px);
+  background-size: 50px 50px;
+}
+
+/* ── Orb glow blobs ───────────────────────────────────────────────────────────── */
+.orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  pointer-events: none;
+  opacity: 0.35;
+}
+
+/* ── Particle dots ────────────────────────────────────────────────────────────── */
+.particle {
+  position: absolute;
+  border-radius: 50%;
+  animation: float 6s ease-in-out infinite;
+}
+
+/* ── Auth tab indicator ───────────────────────────────────────────────────────── */
+.tab-indicator {
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ── Input group ──────────────────────────────────────────────────────────────── */
+.input-field {
+  width: 100%;
+  background: rgba(10, 10, 18, 0.8);
+  border: 1px solid rgba(139, 92, 246, 0.2);
+  border-radius: 0.75rem;
+  padding: 0.875rem 1rem 0.875rem 2.75rem;
+  color: #e2e8f0;
+  font-size: 0.9rem;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.input-field::placeholder { color: rgba(148, 163, 184, 0.5); }
+
+.input-field:focus {
+  border-color: rgba(139, 92, 246, 0.6);
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.15), inset 0 1px 0 rgba(139, 92, 246, 0.1);
+}
+
+.input-field.error {
+  border-color: rgba(239, 68, 68, 0.6);
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15);
+}
