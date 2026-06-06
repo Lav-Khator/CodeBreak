@@ -20,24 +20,25 @@ function diffStyle(d) {
 }
 
 /* ── Verdict badge ────────────────────────────────────────────────────────────── */
-function VerdictBadge({ verdict }) {
+function VerdictBadge({ verdict, label }) {
   if (!verdict) return null;
   const styles = {
     accepted: 'text-emerald-300 bg-emerald-950/60 border-emerald-600/40',
-    wrong: 'text-red-300 bg-red-950/60 border-red-600/40',
-    error: 'text-amber-300 bg-amber-950/60 border-amber-600/40',
-    running: 'text-blue-300 bg-blue-950/60 border-blue-600/40',
+    wrong:    'text-red-300 bg-red-950/60 border-red-600/40',
+    error:    'text-amber-300 bg-amber-950/60 border-amber-600/40',
+    running:  'text-blue-300 bg-blue-950/60 border-blue-600/40',
   };
-  const icons = { accepted: '✅', wrong: '❌', error: '⚠️', running: '⏳' };
-  const labels = { accepted: 'Accepted', wrong: 'Wrong Answer', error: 'Runtime / Compile Error', running: 'Running…' };
+  const icons  = { accepted: '✅', wrong: '❌', error: '⚠️', running: '⏳' };
+  const labels = { accepted: 'Accepted', wrong: 'Wrong Answer', error: 'Error', running: 'Running…' };
 
   return (
     <div className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-semibold animate-fade-in ${styles[verdict]}`}>
       <span className="text-base">{icons[verdict]}</span>
-      {labels[verdict]}
+      {label || labels[verdict]}
     </div>
   );
 }
+
 
 /* ── Problem description section ──────────────────────────────────────────────── */
 function ProblemStatement({ problem }) {
@@ -213,7 +214,15 @@ export default function CodingProblemPage({ user }) {
     };
   }, []);
 
-  // Submit handler (simulated — real execution engine comes later)
+  // Map API verdict → badge key
+  const verdictKey = (v) => {
+    if (!v) return null;
+    if (v === 'Accepted') return 'accepted';
+    if (v === 'Wrong Answer') return 'wrong';
+    return 'error'; // TLE, Runtime Error, Compile Error all show as error
+  };
+
+  // Submit handler — real Docker execution
   const handleSubmit = async () => {
     if (!user) {
       setVerdict('error');
@@ -223,24 +232,29 @@ export default function CodingProblemPage({ user }) {
     setSubmitting(true);
     setVerdict('running');
     setVerdictMsg('');
-
-    // TODO: Replace with real /api/submit endpoint once Docker execution is ready
-    await new Promise((r) => setTimeout(r, 2000));
-    // Simulate random verdict for demo
-    const demo = Math.random();
-    if (demo > 0.4) {
-      setVerdict('accepted');
-      setVerdictMsg('All test cases passed!');
-    } else if (demo > 0.2) {
-      setVerdict('wrong');
-      setVerdictMsg('Output did not match expected on test case 2.');
-    } else {
-      setVerdict('error');
-      setVerdictMsg('Runtime Error: segmentation fault (core dumped)');
-    }
-    setSubmitting(false);
     setActiveResultTab('verdict');
+
+    try {
+      const { data } = await axios.post('/api/submit', {
+        problemSlug: slug,
+        language: selectedLang,
+        code,
+      });
+
+      const sub = data.submission;
+      setVerdict(verdictKey(sub.verdict));
+      const passInfo = `${sub.passedTests}/${sub.totalTests} test cases passed`;
+      const runtimeInfo = sub.runtime ? ` · ${sub.runtime}ms` : '';
+      const errInfo = sub.errorOutput ? `\n${sub.errorOutput}` : '';
+      setVerdictMsg(`${passInfo}${runtimeInfo}${errInfo}`);
+    } catch (err) {
+      setVerdict('error');
+      setVerdictMsg(err.response?.data?.message || 'Submission failed. Is Docker running?');
+    } finally {
+      setSubmitting(false);
+    }
   };
+
 
   // ── Loading / Not found ────────────────────────────────────────────────── */
   if (loading) {
