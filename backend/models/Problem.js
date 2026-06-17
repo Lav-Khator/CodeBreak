@@ -60,9 +60,12 @@ const problemSchema = new mongoose.Schema(
     isProblemOfDay: { type: Boolean, default: false },
     problemOfDayDate: { type: Date, default: null },
 
-    // For break-the-code: the buggy code
+    // For break-the-code: the buggy code + reference solution
     buggyCode: { type: String, default: '' },
-    bugCategory: { type: String, default: '' }, // for AI hint
+    buggyLanguage: { type: String, default: 'cpp' },
+    correctCode: { type: String, default: '' },     // hidden reference solution
+    correctLanguage: { type: String, default: 'cpp' },
+    bugCategory: { type: String, default: '' },
 
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
     isApproved: { type: Boolean, default: true },

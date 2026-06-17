@@ -74,9 +74,9 @@ router.get('/:slug', async (req, res) => {
 });
 
 // ─── POST /api/problems ────────────────────────────────────────────────────────
-router.post('/', protect, async (req, res) => {
+router.post('/', protect, adminOnly, async (req, res) => {
   try {
-    const problem = await Problem.create({ ...req.body, createdBy: req.user._id });
+    const problem = await Problem.create({ ...req.body, createdBy: req.user._id, isApproved: true });
     res.status(201).json({ success: true, problem });
   } catch (err) {
     res.status(400).json({ success: false, message: err.message });

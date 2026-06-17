@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useSearchParams } from 'react-router-dom';
 import Editor from '@monaco-editor/react';
 import ReactMarkdown from 'react-markdown';
 import axios from 'axios';
@@ -41,18 +41,43 @@ function VerdictBadge({ verdict, label }) {
 
 
 /* ── Problem description section ──────────────────────────────────────────────── */
-function ProblemStatement({ problem }) {
+function ProblemStatement({ problem, user, slug, refreshToken }) {
   const [activeTab, setActiveTab] = useState('problem');
+  const [submissions, setSubmissions] = useState([]);
+  const [loadingSubs, setLoadingSubs] = useState(false);
+  const [expandedSub, setExpandedSub] = useState(null);
+
+  // Fetch submission history whenever tab is opened or a new submit happens
+  useEffect(() => {
+    if (activeTab !== 'submissions' || !user) return;
+    setLoadingSubs(true);
+    axios.get(`/api/submit/history/${slug}`)
+      .then(({ data }) => setSubmissions(data.submissions || []))
+      .catch(() => {})
+      .finally(() => setLoadingSubs(false));
+  }, [activeTab, slug, user, refreshToken]);
+
+  const verdictColor = (v) => {
+    if (v === 'Accepted') return 'text-emerald-400';
+    if (v === 'Pending')  return 'text-blue-400';
+    return 'text-red-400';
+  };
+
+  const verdictIcon = (v) => {
+    if (v === 'Accepted') return '✅';
+    if (v === 'Pending')  return '⏳';
+    return '❌';
+  };
 
   return (
     <div className="flex flex-col h-full">
       {/* Tab bar */}
-      <div className="flex border-b border-violet-900/30 flex-shrink-0">
-        {[['problem', '📄 Problem'], ['examples', '💡 Examples'], ['constraints', '📏 Constraints']].map(([key, label]) => (
+      <div className="flex border-b border-violet-900/30 flex-shrink-0 overflow-x-auto">
+        {[['problem', '📄 Problem'], ['examples', '💡 Examples'], ['constraints', '📏 Constraints'], ['submissions', '📜 Submissions']].map(([key, label]) => (
           <button
             key={key}
             onClick={() => setActiveTab(key)}
-            className={`px-5 py-3 text-sm font-semibold transition-all duration-200 border-b-2 ${
+            className={`px-4 py-3 text-sm font-semibold transition-all duration-200 border-b-2 whitespace-nowrap ${
               activeTab === key
                 ? 'text-violet-300 border-violet-500'
                 : 'text-slate-400 hover:text-slate-300 border-transparent'
@@ -143,6 +168,57 @@ function ProblemStatement({ problem }) {
             </ul>
           </div>
         )}
+
+        {activeTab === 'submissions' && (
+          <div className="space-y-2">
+            {!user ? (
+              <p className="text-slate-500 text-sm text-center py-8">Sign in to see your submissions.</p>
+            ) : loadingSubs ? (
+              <div className="flex justify-center py-8">
+                <div className="w-5 h-5 rounded-full border-2 border-violet-500 border-t-transparent animate-spin" />
+              </div>
+            ) : submissions.length === 0 ? (
+              <div className="text-center py-8 text-slate-500">
+                <p className="text-2xl mb-2">📭</p>
+                <p className="text-sm">No submissions yet</p>
+              </div>
+            ) : submissions.map((s) => (
+              <div key={s._id} className="rounded-xl border border-white/5 overflow-hidden">
+                <button
+                  onClick={() => setExpandedSub(expandedSub === s._id ? null : s._id)}
+                  className="w-full flex items-center justify-between px-4 py-3 hover:bg-white/3 transition-colors text-left"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className={`text-sm font-bold ${verdictColor(s.verdict)}`}>
+                      {verdictIcon(s.verdict)} {s.verdict}
+                    </span>
+                    <span className="text-xs text-slate-500 font-mono uppercase">{s.language}</span>
+                    {s.passedTests > 0 && (
+                      <span className="text-xs text-slate-600">{s.passedTests}/{s.totalTests} passed</span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-slate-600">{new Date(s.createdAt).toLocaleTimeString()}</span>
+                    <span className="text-slate-500 text-xs">{expandedSub === s._id ? '▲' : '▼'}</span>
+                  </div>
+                </button>
+                {expandedSub === s._id && (
+                  <div className="border-t border-white/5">
+                    <pre className="text-xs font-mono text-slate-300 p-4 overflow-x-auto bg-dark-800/60 max-h-64 whitespace-pre">
+                      {s.code}
+                    </pre>
+                    {s.errorOutput && (
+                      <div className="px-4 pb-3">
+                        <p className="text-xs text-slate-500 font-semibold uppercase mb-1">Error Output</p>
+                        <pre className="text-xs font-mono text-red-300 bg-red-950/20 rounded p-2 whitespace-pre-wrap">{s.errorOutput}</pre>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -153,6 +229,10 @@ function ProblemStatement({ problem }) {
 ══════════════════════════════════════════════════════════════════════════════ */
 export default function CodingProblemPage({ user }) {
   const { slug } = useParams();
+  const [searchParams] = useSearchParams();
+  const contestId = searchParams.get('contest'); // e.g. /problems/two-sum?contest=abc123
+  const inContest = Boolean(contestId); // AI features disabled during contests
+
   const [problem, setProblem] = useState(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
@@ -160,9 +240,21 @@ export default function CodingProblemPage({ user }) {
   const [selectedLang, setSelectedLang] = useState('cpp');
   const [code, setCode] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [verdict, setVerdict] = useState(null); // null | 'accepted' | 'wrong' | 'error' | 'running'
+  const [verdict, setVerdict] = useState(null);
   const [verdictMsg, setVerdictMsg] = useState('');
   const [activeResultTab, setActiveResultTab] = useState('verdict');
+  const [refreshToken, setRefreshToken] = useState(0); // bump to reload submissions
+
+  // ── AI state ────────────────────────────────────────────────────────────── //
+  const [showHint, setShowHint]           = useState(false);
+  const [hint, setHint]                   = useState('');
+  const [hintLoading, setHintLoading]     = useState(false);
+  const [hintError, setHintError]         = useState('');
+  const [feedback, setFeedback]           = useState('');
+  const [feedbackLoading, setFeedbackLoading] = useState(false);
+  const [feedbackError, setFeedbackError] = useState('');
+  // track last submission data for feedback
+  const [lastSub, setLastSub]             = useState(null);
 
   // Drag-to-resize
   const [leftWidth, setLeftWidth] = useState(45); // percent
@@ -232,6 +324,8 @@ export default function CodingProblemPage({ user }) {
     setSubmitting(true);
     setVerdict('running');
     setVerdictMsg('');
+    setFeedback('');
+    setFeedbackError('');
     setActiveResultTab('verdict');
 
     try {
@@ -239,6 +333,7 @@ export default function CodingProblemPage({ user }) {
         problemSlug: slug,
         language: selectedLang,
         code,
+        contestId: contestId || undefined,
       });
 
       const sub = data.submission;
@@ -247,11 +342,61 @@ export default function CodingProblemPage({ user }) {
       const runtimeInfo = sub.runtime ? ` · ${sub.runtime}ms` : '';
       const errInfo = sub.errorOutput ? `\n${sub.errorOutput}` : '';
       setVerdictMsg(`${passInfo}${runtimeInfo}${errInfo}`);
+      setLastSub(sub); // save for AI feedback
+      setRefreshToken((t) => t + 1); // refresh submission history tab
     } catch (err) {
       setVerdict('error');
       setVerdictMsg(err.response?.data?.message || 'Submission failed. Is Docker running?');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  // AI Hint handler
+  const handleHint = async () => {
+    if (!problem) return;
+    setHint('');
+    setHintError('');
+    setHintLoading(true);
+    setShowHint(true);
+    try {
+      const { data } = await axios.post('/api/ai/hint', {
+        title: problem.title,
+        description: problem.description,
+        constraints: problem.constraints,
+        examples: problem.examples,
+      });
+      setHint(data.hint);
+    } catch (err) {
+      setHintError(err.response?.data?.message || 'Could not get hint. Try again.');
+    } finally {
+      setHintLoading(false);
+    }
+  };
+
+  // AI Feedback handler
+  const handleFeedback = async () => {
+    if (!problem || !lastSub) return;
+    setFeedback('');
+    setFeedbackError('');
+    setFeedbackLoading(true);
+    try {
+      const { data } = await axios.post('/api/ai/feedback', {
+        title: problem.title,
+        description: problem.description,
+        constraints: problem.constraints,
+        language: selectedLang,
+        code,
+        verdict: lastSub.verdict,
+        passedTests: lastSub.passedTests,
+        totalTests: lastSub.totalTests,
+        errorOutput: lastSub.errorOutput,
+      });
+      setFeedback(data.feedback);
+    } catch (err) {
+      setFeedbackError(err.response?.data?.message || 'Could not get feedback. Try again.');
+    } finally {
+      setFeedbackLoading(false);
     }
   };
 
@@ -288,7 +433,63 @@ export default function CodingProblemPage({ user }) {
   return (
     <div className="h-screen bg-dark-900 flex flex-col pt-16 overflow-hidden">
 
-      {/* ── Top bar ─────────────────────────────────────────────────────── */}
+      {/* -- Hint Modal ---------------------------------------------------- */}
+      {showHint && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+          onClick={() => setShowHint(false)}
+        >
+          <div
+            className="glass rounded-2xl border border-violet-700/40 p-6 max-w-md w-full mx-4 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <span className="text-xl">💡</span>
+                <h3 className="text-white font-bold">AI Hint</h3>
+                <span className="text-xs px-2 py-0.5 rounded-md bg-violet-950/60 border border-violet-700/30 text-violet-400">Gemini</span>
+              </div>
+              <button
+                onClick={() => setShowHint(false)}
+                className="text-slate-400 hover:text-white transition-colors text-xl leading-none"
+              >
+                &times;
+              </button>
+            </div>
+
+            {hintLoading && (
+              <div className="flex items-center gap-3 py-6 justify-center">
+                <div className="w-5 h-5 rounded-full border-2 border-violet-500 border-t-transparent animate-spin" />
+                <span className="text-slate-400 text-sm">Thinking...</span>
+              </div>
+            )}
+            {hintError && <p className="text-red-400 text-sm">{hintError}</p>}
+            {hint && !hintLoading && (
+              <div className="bg-violet-950/30 rounded-xl border border-violet-700/20 p-4">
+                <p className="text-slate-200 text-sm leading-relaxed">{hint}</p>
+              </div>
+            )}
+
+            <div className="flex justify-between items-center mt-4">
+              <button
+                onClick={handleHint}
+                disabled={hintLoading}
+                className="text-xs text-violet-400 hover:text-violet-300 transition-colors disabled:opacity-40"
+              >
+                🔄 Get another hint
+              </button>
+              <button
+                onClick={() => setShowHint(false)}
+                className="text-xs px-4 py-1.5 rounded-lg bg-dark-700/60 border border-white/10 text-slate-400 hover:text-white transition-all"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* -- Top bar ------------------------------------------------------- */}
       <div className="flex items-center justify-between px-4 py-2.5 border-b border-violet-900/30 bg-dark-800/60 flex-shrink-0">
         <div className="flex items-center gap-3">
           <Link
@@ -308,6 +509,16 @@ export default function CodingProblemPage({ user }) {
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Hint button — hidden in contest mode */}
+          {!inContest && user && (
+            <button
+              id="hint-button"
+              onClick={handleHint}
+              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-amber-950/40 border border-amber-700/40 text-amber-300 hover:bg-amber-900/40 transition-all"
+            >
+              💡 Hint
+            </button>
+          )}
           {verdict && <VerdictBadge verdict={verdict} />}
         </div>
       </div>
@@ -320,7 +531,7 @@ export default function CodingProblemPage({ user }) {
           className="flex-shrink-0 overflow-hidden border-r border-violet-900/30 bg-dark-800/30"
           style={{ width: `${leftWidth}%` }}
         >
-          <ProblemStatement problem={problem} />
+          <ProblemStatement problem={problem} user={user} slug={slug} refreshToken={refreshToken} />
         </div>
 
         {/* Drag handle */}
@@ -423,7 +634,7 @@ export default function CodingProblemPage({ user }) {
 
           {/* Results panel */}
           {(verdict || submitting) && (
-            <div className="flex-shrink-0 border-t border-violet-900/30 bg-dark-800/60 animate-slide-up" style={{ maxHeight: '180px', overflowY: 'auto' }}>
+            <div className="flex-shrink-0 border-t border-violet-900/30 bg-dark-800/60 animate-slide-up" style={{ maxHeight: '260px', overflowY: 'auto' }}>
               <div className="flex border-b border-white/5">
                 {[['verdict', 'Verdict'], ['output', 'Output']].map(([k, l]) => (
                   <button
@@ -437,12 +648,45 @@ export default function CodingProblemPage({ user }) {
                   </button>
                 ))}
               </div>
-              <div className="p-4">
+              <div className="p-4 space-y-3">
                 {activeResultTab === 'verdict' && (
-                  <div className="flex items-center gap-3">
-                    <VerdictBadge verdict={submitting ? 'running' : verdict} />
-                    {verdictMsg && <p className="text-sm text-slate-300">{verdictMsg}</p>}
-                  </div>
+                  <>
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <VerdictBadge verdict={submitting ? 'running' : verdict} />
+                      {verdictMsg && <p className="text-sm text-slate-300">{verdictMsg}</p>}
+                    </div>
+                    {/* AI Feedback button — non-accepted verdicts, not in contest */}
+                    {!inContest && !submitting && verdict && verdict !== 'accepted' && (
+                      <div>
+                        {!feedback && !feedbackLoading && (
+                          <button
+                            onClick={handleFeedback}
+                            className="flex items-center gap-2 text-xs px-3 py-1.5 rounded-lg bg-violet-950/50 border border-violet-700/40 text-violet-300 hover:bg-violet-900/40 transition-all"
+                          >
+                            <span>🤖</span> Get AI Feedback
+                          </button>
+                        )}
+                        {feedbackLoading && (
+                          <div className="flex items-center gap-2 text-xs text-slate-400">
+                            <div className="w-3 h-3 rounded-full border border-violet-500 border-t-transparent animate-spin" />
+                            Analyzing your code…
+                          </div>
+                        )}
+                        {feedbackError && (
+                          <p className="text-xs text-red-400">{feedbackError}</p>
+                        )}
+                        {feedback && (
+                          <div className="bg-violet-950/30 border border-violet-700/30 rounded-xl p-3">
+                            <div className="flex items-center gap-1.5 mb-1.5">
+                              <span className="text-sm">🤖</span>
+                              <span className="text-xs font-bold text-violet-300">AI Feedback</span>
+                            </div>
+                            <p className="text-xs text-slate-300 leading-relaxed">{feedback}</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </>
                 )}
                 {activeResultTab === 'output' && (
                   <pre className="text-xs text-slate-300 font-mono">

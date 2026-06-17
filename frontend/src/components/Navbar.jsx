@@ -5,7 +5,6 @@ const NAV_LINKS = [
   { to: '/', label: 'Home', icon: '⚡' },
   { to: '/problems', label: 'Problems', icon: '📋' },
   { to: '/contests', label: 'Contests', icon: '🏆' },
-  { to: '/leaderboard', label: 'Leaderboard', icon: '👑' },
 ];
 
 export default function Navbar({ user, onLogout }) {
@@ -101,6 +100,11 @@ export default function Navbar({ user, onLogout }) {
                       <Link to="/host-contest" className="flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm text-slate-300 hover:text-white hover:bg-white/5 transition-colors">
                         <span>🎯</span> Host Contest
                       </Link>
+                      {user?.role === 'admin' && (
+                        <Link to="/admin" className="flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm text-amber-400 hover:text-amber-300 hover:bg-amber-950/20 transition-colors">
+                          <span>🛡</span> Admin Panel
+                        </Link>
+                      )}
                       <div className="h-px bg-violet-900/30 my-1" />
                       <button
                         onClick={onLogout}
@@ -110,6 +114,7 @@ export default function Navbar({ user, onLogout }) {
                       </button>
                     </div>
                   </div>
+                
                 </div>
               </>
             ) : (

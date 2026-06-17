@@ -41,7 +41,10 @@ function ContestCard({ contest }) {
   };
 
   return (
-    <div className="glass rounded-2xl p-5 border border-violet-900/20 hover:border-violet-600/40 transition-all duration-300 group hover:-translate-y-1">
+    <Link
+      to={`/contests/${contest._id}`}
+      className="block glass rounded-2xl p-5 border border-violet-900/20 hover:border-violet-600/40 transition-all duration-300 group hover:-translate-y-1"
+    >
       <div className="flex items-start justify-between mb-3">
         <span className={`text-xs font-semibold px-2.5 py-1 rounded-lg border ${statusStyles[status]}`}>
           {status === 'ongoing' ? '🔴 LIVE' : status === 'upcoming' ? '🕐 Upcoming' : '✓ Ended'}
@@ -68,7 +71,7 @@ function ContestCard({ contest }) {
           {contest.participants?.length ?? 0} registered
         </span>
       </div>
-    </div>
+    </Link>
   );
 }
 
@@ -100,29 +103,22 @@ function UserRow({ rank, user, ratingKey }) {
    Landing Page
 ══════════════════════════════════════════════════════════════════════════════ */
 export default function LandingPage({ user }) {
-  const [contests, setContests] = useState([]);
+  const [contests, setContests]       = useState([]);
   const [dailyProblem, setDailyProblem] = useState(null);
-  const [topSolvers, setTopSolvers] = useState([]);
-  const [topBreakers, setTopBreakers] = useState([]);
-  const [stats, setStats] = useState({ problems: 0, users: 0, contests: 0 });
-  const [loading, setLoading] = useState(true);
-  const [leaderTab, setLeaderTab] = useState('solvers');
+  const [stats, setStats]             = useState({ problems: 0 });
+  const [loading, setLoading]         = useState(true);
 
   useEffect(() => {
     const fetchAll = async () => {
       try {
-        const [contestsRes, dailyRes, solversRes, breakersRes, problemsRes] = await Promise.allSettled([
+        const [contestsRes, dailyRes, problemsRes] = await Promise.allSettled([
           axios.get('/api/contests/upcoming'),
           axios.get('/api/problems/daily'),
-          axios.get('/api/leaderboard/solvers'),
-          axios.get('/api/leaderboard/breakers'),
           axios.get('/api/problems?limit=1'),
         ]);
 
         if (contestsRes.status === 'fulfilled') setContests(contestsRes.value.data.contests || []);
         if (dailyRes.status === 'fulfilled') setDailyProblem(dailyRes.value.data.problem);
-        if (solversRes.status === 'fulfilled') setTopSolvers(solversRes.value.data.users?.slice(0, 5) || []);
-        if (breakersRes.status === 'fulfilled') setTopBreakers(breakersRes.value.data.users?.slice(0, 5) || []);
         if (problemsRes.status === 'fulfilled')
           setStats(s => ({ ...s, problems: problemsRes.value.data.pagination?.total || 0 }));
       } catch (e) { /* silent */ }
@@ -130,9 +126,6 @@ export default function LandingPage({ user }) {
     };
     fetchAll();
   }, []);
-
-  const leaderUsers = leaderTab === 'solvers' ? topSolvers : topBreakers;
-  const leaderRatingKey = leaderTab === 'solvers' ? 'solverRating' : 'breakerRating';
 
   return (
     <div className="min-h-screen bg-dark-900 bg-grid">
@@ -181,12 +174,10 @@ export default function LandingPage({ user }) {
         </section>
 
         {/* ══ STATS ═════════════════════════════════════════════════════════ */}
-        <section className="px-4 max-w-4xl mx-auto mb-20">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <StatCard icon="📋" label="Problems" value={loading ? '…' : stats.problems || '8+'} color="border-violet-900/30" />
-            <StatCard icon="👥" label="Coders" value={loading ? '…' : '1K+'} color="border-blue-900/30" />
-            <StatCard icon="🏆" label="Contests" value={loading ? '…' : contests.length || '4'} color="border-amber-900/30" />
-            <StatCard icon="💥" label="Breaks" value={loading ? '…' : '2K+'} color="border-red-900/30" />
+        <section className="px-4 max-w-3xl mx-auto mb-20">
+          <div className="grid grid-cols-2 gap-4">
+            <StatCard icon="📋" label="Problems" value={loading ? '…' : stats.problems || 0} color="border-violet-900/30" />
+            <StatCard icon="🏆" label="Contests" value={loading ? '…' : contests.length} color="border-amber-900/30" />
           </div>
         </section>
 
@@ -232,7 +223,9 @@ export default function LandingPage({ user }) {
                   </div>
                   <div className="mt-4 flex items-center justify-between">
                     <span className="text-xs text-slate-500">
-                      {dailyProblem.acceptanceRate ?? Math.round((dailyProblem.acceptedSubmissions / Math.max(dailyProblem.totalSubmissions, 1)) * 100)}% acceptance
+                      {(dailyProblem.totalSubmissions ?? 0) > 0
+                        ? `${Math.round(((dailyProblem.acceptedSubmissions ?? 0) / dailyProblem.totalSubmissions) * 100)}% acceptance`
+                        : 'No submissions yet'}
                     </span>
                     <span className="text-sm text-violet-400 font-semibold group-hover:gap-2 flex items-center gap-1 transition-all">
                       Solve now →
@@ -287,53 +280,7 @@ export default function LandingPage({ user }) {
           </div>
         </section>
 
-        {/* ══ LEADERBOARD PREVIEW ═══════════════════════════════════════════ */}
-        <section className="px-4 max-w-3xl mx-auto mb-24">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-bold text-white flex items-center gap-2">
-              <span className="text-2xl">👑</span> Top Users
-            </h2>
-            <Link to="/leaderboard" className="text-sm text-violet-400 hover:text-violet-300 transition-colors">
-              Full leaderboard →
-            </Link>
-          </div>
 
-          <div className="glass rounded-2xl border border-violet-900/20 overflow-hidden">
-            {/* Tab bar */}
-            <div className="flex border-b border-violet-900/30">
-              {[['solvers', '⚔ Top Solvers'], ['breakers', '💥 Top Breakers']].map(([key, label]) => (
-                <button
-                  key={key}
-                  id={`leaderboard-tab-${key}`}
-                  onClick={() => setLeaderTab(key)}
-                  className={`flex-1 py-3.5 text-sm font-semibold transition-all duration-200 ${
-                    leaderTab === key
-                      ? 'text-violet-300 border-b-2 border-violet-500 bg-violet-950/30'
-                      : 'text-slate-400 hover:text-slate-300'
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-
-            <div className="p-4">
-              {loading ? (
-                <div className="space-y-3">
-                  {[1, 2, 3, 4, 5].map((i) => (
-                    <div key={i} className="h-10 bg-white/5 rounded-lg animate-pulse" />
-                  ))}
-                </div>
-              ) : leaderUsers.length > 0 ? (
-                leaderUsers.map((u, i) => (
-                  <UserRow key={u._id} rank={i + 1} user={u} ratingKey={leaderRatingKey} />
-                ))
-              ) : (
-                <p className="text-center text-slate-500 py-6 text-sm">No users yet — be the first!</p>
-              )}
-            </div>
-          </div>
-        </section>
 
         {/* ══ CTA FOOTER BANNER ════════════════════════════════════════════ */}
         {!user && (

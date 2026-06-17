@@ -24,6 +24,12 @@ app.use('/api/problems', require('./routes/problems'));
 app.use('/api/contests', require('./routes/contests'));
 app.use('/api/leaderboard', require('./routes/leaderboard'));
 app.use('/api/submit', require('./routes/submit'));
+app.use('/api/users', require('./routes/users'));
+app.use('/api/break', require('./routes/break'));
+app.use('/api/admin', require('./routes/admin'));
+app.use('/api/ai', require('./routes/ai'));
+
+
 
 
 // ─── Health check ─────────────────────────────────────────────────────────────

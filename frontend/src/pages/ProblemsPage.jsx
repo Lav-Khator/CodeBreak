@@ -18,7 +18,10 @@ function typeLabel(t) {
   return t === 'coding' ? '⚔ Coding' : '💥 Break the Code';
 }
 
-function AcceptanceBar({ rate }) {
+function AcceptanceBar({ rate, total }) {
+  if (!total) {
+    return <span className="text-xs text-slate-600 font-mono">—</span>;
+  }
   const color = rate >= 60 ? '#22C55E' : rate >= 35 ? '#EAB308' : '#EF4444';
   return (
     <div className="flex items-center gap-2">
@@ -49,14 +52,15 @@ function SkeletonRow() {
 /* ══════════════════════════════════════════════════════════════════════════════
    Problems Page
 ══════════════════════════════════════════════════════════════════════════════ */
-export default function ProblemsPage() {
-  const [problems, setProblems] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
+export default function ProblemsPage({ user }) {
+  const [problems, setProblems]     = useState([]);
+  const [loading, setLoading]       = useState(true);
+  const [solvedIds, setSolvedIds]   = useState(new Set()); // problem IDs user has solved
+  const [search, setSearch]         = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
   const [diffFilter, setDiffFilter] = useState('all');
-  const [tagFilter, setTagFilter] = useState('');
-  const [sortBy, setSortBy] = useState('default'); // default | acceptance-asc | acceptance-desc | difficulty
+  const [tagFilter, setTagFilter]   = useState('');
+  const [sortBy, setSortBy]         = useState('default');
 
   useEffect(() => {
     const fetchProblems = async () => {
@@ -75,6 +79,14 @@ export default function ProblemsPage() {
     };
     fetchProblems();
   }, [typeFilter, diffFilter]);
+
+  // Fetch solved problem IDs if user is logged in
+  useEffect(() => {
+    if (!user) { setSolvedIds(new Set()); return; }
+    axios.get('/api/submit/solved')
+      .then(({ data }) => setSolvedIds(new Set(data.solvedIds || [])))
+      .catch(() => {});
+  }, [user]);
 
   // Client-side search + tag filter + sort
   const filtered = useMemo(() => {
@@ -221,6 +233,7 @@ export default function ProblemsPage() {
               <thead>
                 <tr className="border-b border-white/10">
                   <th className="text-left px-4 py-3.5 text-xs font-semibold text-slate-400 uppercase tracking-wider w-12">#</th>
+                  <th className="text-center px-3 py-3.5 text-xs font-semibold text-slate-400 uppercase tracking-wider w-10">✓</th>
                   <th className="text-left px-4 py-3.5 text-xs font-semibold text-slate-400 uppercase tracking-wider">Problem</th>
                   <th className="text-left px-4 py-3.5 text-xs font-semibold text-slate-400 uppercase tracking-wider">Type</th>
                   <th className="text-left px-4 py-3.5 text-xs font-semibold text-slate-400 uppercase tracking-wider">Difficulty</th>
@@ -241,18 +254,29 @@ export default function ProblemsPage() {
                     </tr>
                   )
                   : filtered.map((p, idx) => {
-                      const rate = p.acceptanceRate ?? Math.round(((p.acceptedSubmissions ?? 0) / Math.max(p.totalSubmissions ?? 1, 1)) * 100);
+                      const total   = p.totalSubmissions ?? 0;
+                      const rate    = total > 0 ? Math.round(((p.acceptedSubmissions ?? 0) / total) * 100) : 0;
+                      const solved  = solvedIds.has(p._id?.toString() || p._id);
                       return (
                         <tr
                           key={p._id}
-                          className="border-b border-white/5 hover:bg-violet-950/10 transition-colors group"
+                          className={`border-b border-white/5 transition-colors group ${
+                            solved ? 'bg-emerald-950/10 hover:bg-emerald-950/20' : 'hover:bg-violet-950/10'
+                          }`}
                         >
                           <td className="px-4 py-4 text-slate-500 text-sm font-mono">{idx + 1}</td>
+                          <td className="px-3 py-4 text-center">
+                            {solved
+                              ? <span className="text-emerald-400 font-bold text-sm">✓</span>
+                              : <span className="text-slate-700 text-sm">–</span>}
+                          </td>
                           <td className="px-4 py-4">
                             <Link
-                              to={`/problems/${p.slug}`}
+                              to={p.type === 'break-the-code' ? `/break/${p.slug}` : `/problems/${p.slug}`}
                               id={`problem-${p.slug}`}
-                              className="font-semibold text-white group-hover:text-violet-300 transition-colors flex items-center gap-2"
+                              className={`font-semibold transition-colors flex items-center gap-2 ${
+                                solved ? 'text-emerald-300 group-hover:text-emerald-200' : 'text-white group-hover:text-violet-300'
+                              }`}
                             >
                               {p.isProblemOfDay && (
                                 <span title="Problem of the Day" className="text-amber-400 text-xs">🔥</span>
@@ -287,7 +311,7 @@ export default function ProblemsPage() {
                             </div>
                           </td>
                           <td className="px-4 py-4 w-36">
-                            <AcceptanceBar rate={rate} />
+                            <AcceptanceBar rate={rate} total={total} />
                           </td>
                         </tr>
                       );

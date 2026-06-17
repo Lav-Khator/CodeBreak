@@ -8,7 +8,7 @@ const { executeCode } = require('../services/executor');
 
 // ─── POST /api/submit ──────────────────────────────────────────────────────────
 router.post('/', protect, async (req, res) => {
-  const { problemSlug, language, code } = req.body;
+  const { problemSlug, language, code, contestId } = req.body;
 
   if (!problemSlug || !language || !code) {
     return res.status(400).json({ success: false, message: 'problemSlug, language, and code are required' });
@@ -33,6 +33,7 @@ router.post('/', protect, async (req, res) => {
   const submission = await Submission.create({
     user: req.user._id,
     problem: problem._id,
+    contest: contestId || null,
     language,
     code,
     verdict: 'Pending',
@@ -61,9 +62,17 @@ router.post('/', protect, async (req, res) => {
     }
     await problem.save();
 
-    // If accepted, bump solver rating slightly (simplified — real ELO comes later)
+    // If accepted, bump solver rating — ONLY on first-ever accepted submission for this problem
     if (result.verdict === 'Accepted') {
-      await User.findByIdAndUpdate(req.user._id, { $inc: { solverRating: 5 } });
+      const previousAccepted = await Submission.findOne({
+        user: req.user._id,
+        problem: problem._id,
+        verdict: 'Accepted',
+        _id: { $ne: submission._id }, // exclude the submission we just created
+      });
+      if (!previousAccepted) {
+        await User.findByIdAndUpdate(req.user._id, { $inc: { solverRating: 10 } });
+      }
     }
 
     return res.json({
@@ -100,11 +109,29 @@ router.get('/history/:problemSlug', protect, async (req, res) => {
     if (!problem) return res.status(404).json({ success: false, message: 'Problem not found' });
 
     const submissions = await Submission.find({ user: req.user._id, problem: problem._id })
-      .select('-code -errorOutput')
+      .select('-__v')
       .sort({ createdAt: -1 })
       .limit(20);
 
     res.json({ success: true, submissions });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// ─── GET /api/submit/solved ────────────────────────────────────────────────────
+// Returns array of problem IDs the logged-in user has solved (coding + break)
+router.get('/solved', protect, async (req, res) => {
+  try {
+    const BreakSubmission = require('../models/BreakSubmission');
+
+    const [codingSolved, breakSolved] = await Promise.all([
+      Submission.find({ user: req.user._id, verdict: 'Accepted' }).distinct('problem'),
+      BreakSubmission.find({ user: req.user._id, result: 'Broken' }).distinct('problem'),
+    ]);
+
+    const allSolved = [...new Set([...codingSolved.map(String), ...breakSolved.map(String)])];
+    res.json({ success: true, solvedIds: allSolved });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }

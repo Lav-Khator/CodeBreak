@@ -4,6 +4,7 @@ const submissionSchema = new mongoose.Schema(
   {
     user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     problem: { type: mongoose.Schema.Types.ObjectId, ref: 'Problem', required: true },
+    contest: { type: mongoose.Schema.Types.ObjectId, ref: 'Contest', default: null }, // optional
     language: { type: String, enum: ['cpp', 'python', 'java', 'javascript'], required: true },
     code: { type: String, required: true },
     verdict: {
