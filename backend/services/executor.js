@@ -75,8 +75,13 @@ async function executeCode({ language, code, testCases }) {
 
   // ── Setup temp dir ─────────────────────────────────────────────────────────
   const runId   = uuidv4();
-  const codeDir = path.join(os.tmpdir(), `judge_${runId}`);
+  const codeDir = path.join(__dirname, '..', 'tmp', `judge_${runId}`);
   fs.mkdirSync(codeDir, { recursive: true });
+  try {
+    fs.chmodSync(codeDir, 0o777);
+  } catch (err) {
+    // Ignore if chmod fails (e.g. on Windows)
+  }
 
   try {
     // Write code file
@@ -162,22 +167,22 @@ async function executeCode({ language, code, testCases }) {
 
       if (exitCode === 124) {
         // timeout(1) exit code for TLE
-        results.verdict    = 'Time Limit Exceeded';
+        results.verdict = 'Time Limit Exceeded';
         results.errorOutput = `Test ${i + 1}: Exceeded 5 seconds`;
         return results;
       }
 
       if (exitCode !== 0) {
-        results.verdict    = 'Runtime Error';
+        results.verdict = 'Runtime Error';
         results.errorOutput = `Test ${i + 1}: ${rawOut.slice(0, 300) || rawErr.slice(0, 300) || rawOutput.stderr.slice(0, 300) || 'Unknown error'}`;
         return results;
       }
 
-      const got      = normalize(rawOut);
+      const got = normalize(rawOut);
       const expected = normalize(testCases[i].expectedOutput);
 
       if (got !== expected) {
-        results.verdict    = 'Wrong Answer';
+        results.verdict = 'Wrong Answer';
         results.errorOutput =
           `Test ${i + 1}:\nExpected: ${expected.slice(0, 200)}\nGot:      ${got.slice(0, 200)}`;
         return results;
@@ -189,7 +194,7 @@ async function executeCode({ language, code, testCases }) {
     return results;
 
   } finally {
-    try { fs.rmSync(codeDir, { recursive: true, force: true }); } catch {}
+    try { fs.rmSync(codeDir, { recursive: true, force: true }); } catch { }
   }
 }
 
