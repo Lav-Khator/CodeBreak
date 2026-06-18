@@ -106,7 +106,7 @@ async function executeCode({ language, code, testCases }) {
       '--pids-limit=64',
       '--cap-drop=ALL',
       '--read-only',
-      '--tmpfs', '/tmp:rw,noexec,nosuid,size=64m',
+      '--tmpfs', '/tmp:rw,nosuid,size=64m',
       '--cpus=1',
       '--network=none',
       '-v', `${volume}:/code`,
