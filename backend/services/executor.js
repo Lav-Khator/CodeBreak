@@ -9,7 +9,7 @@ const LANG = {
   cpp: {
     image: 'gcc:13',
     codeFile: 'solution.cpp',
-    compile: 'g++ -O2 -o /tmp/sol /code/solution.cpp 2>/code/_cerr.txt || { echo "__COMPILE_ERROR__"; cat /code/_cerr.txt; exit 1; }',
+    compile: 'timeout 15 g++ -O2 -o /tmp/sol /code/solution.cpp 2>/code/_cerr.txt || { echo "__COMPILE_ERROR__"; cat /code/_cerr.txt; exit 1; }',
     run: 'timeout 5 /tmp/sol',
   },
   python: {
@@ -21,7 +21,7 @@ const LANG = {
   java: {
     image: 'eclipse-temurin:21-jdk-alpine',
     codeFile: 'Solution.java',
-    compile: 'javac /code/Solution.java -d /tmp 2>/code/_cerr.txt || { echo "__COMPILE_ERROR__"; cat /code/_cerr.txt; exit 1; }',
+    compile: 'timeout 15 javac /code/Solution.java -d /tmp 2>/code/_cerr.txt || { echo "__COMPILE_ERROR__"; cat /code/_cerr.txt; exit 1; }',
     run: 'timeout 5 java -cp /tmp Solution',
   },
   javascript: {
@@ -32,13 +32,16 @@ const LANG = {
   },
 };
 
-const CASE_SEP = '___CASE_END___';
 const DOCKER_TIMEOUT_MS = 60000; // 60s total for all test cases in one container
 
 // ── Build a shell script that runs ALL test cases in one container ───────────
 function buildRunScript(lang, numCases) {
   const L = LANG[lang];
-  const lines = ['#!/bin/sh', ''];
+  const lines = [
+    '#!/bin/sh',
+    'ulimit -f 10240', // Limit file writes to 10MB to prevent disk exhaustion
+    ''
+  ];
 
   // Compile step (once)
   if (L.compile) {
@@ -46,10 +49,10 @@ function buildRunScript(lang, numCases) {
     lines.push('');
   }
 
-  // Run each test case, separated by CASE_SEP
+  // Run each test case, redirecting stdout, stderr, and exit codes to separate files
   for (let i = 0; i < numCases; i++) {
-    lines.push(`${L.run} < /code/_input_${i}.txt`);
-    lines.push(`echo "${CASE_SEP}$?"`);
+    lines.push(`${L.run} < /code/_input_${i}.txt > /code/_output_${i}.txt 2> /code/_stderr_${i}.txt`);
+    lines.push(`echo $? > /code/_exit_${i}.txt`);
   }
 
   return lines.join('\n') + '\n';
@@ -94,7 +97,11 @@ async function executeCode({ language, code, testCases }) {
     const dockerArgs = [
       'run', '--rm',
       '--memory=256m',
-      '--memory-swap=-1',
+      '--memory-swap=256m',
+      '--pids-limit=64',
+      '--cap-drop=ALL',
+      '--read-only',
+      '--tmpfs', '/tmp:rw,noexec,nosuid,size=64m',
       '--cpus=1',
       '--network=none',
       '-v', `${volume}:/code`,
@@ -129,8 +136,6 @@ async function executeCode({ language, code, testCases }) {
       };
     }
 
-    // Split by separator: each chunk is the output of one test case
-    // Format: <output>\n___CASE_END___<exit_code>
     const results = {
       verdict: 'Accepted',
       passedTests: 0,
@@ -139,16 +144,21 @@ async function executeCode({ language, code, testCases }) {
       errorOutput: '',
     };
 
-    const sepRegex = /___CASE_END___(\d+)/;
-    const parts = fullOutput.split(sepRegex);
-    // parts = [output0, exitCode0, output1, exitCode1, ...]
-
     for (let i = 0; i < testCases.length; i++) {
-      const outputIdx = i * 2;
-      const exitCodeIdx = i * 2 + 1;
+      const exitFile = path.join(codeDir, `_exit_${i}.txt`);
+      const outFile = path.join(codeDir, `_output_${i}.txt`);
+      const errFile = path.join(codeDir, `_stderr_${i}.txt`);
 
-      const rawOut  = (parts[outputIdx] ?? '').trimEnd();
-      const exitCode = parseInt(parts[exitCodeIdx] ?? '1', 10);
+      // If the exit file doesn't exist, it means the container exited or crashed early before running this case
+      if (!fs.existsSync(exitFile)) {
+        results.verdict = 'Runtime Error';
+        results.errorOutput = `Test ${i + 1}: Execution did not run (container may have exited)`;
+        return results;
+      }
+
+      const exitCode = parseInt(fs.readFileSync(exitFile, 'utf8').trim(), 10);
+      const rawOut = fs.existsSync(outFile) ? fs.readFileSync(outFile, 'utf8').trimEnd() : '';
+      const rawErr = fs.existsSync(errFile) ? fs.readFileSync(errFile, 'utf8').trim() : '';
 
       if (exitCode === 124) {
         // timeout(1) exit code for TLE
@@ -159,7 +169,7 @@ async function executeCode({ language, code, testCases }) {
 
       if (exitCode !== 0) {
         results.verdict    = 'Runtime Error';
-        results.errorOutput = `Test ${i + 1}: ${rawOut.slice(0, 300) || rawOutput.stderr.slice(0, 300)}`;
+        results.errorOutput = `Test ${i + 1}: ${rawOut.slice(0, 300) || rawErr.slice(0, 300) || rawOutput.stderr.slice(0, 300) || 'Unknown error'}`;
         return results;
       }
 
