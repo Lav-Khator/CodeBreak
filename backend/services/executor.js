@@ -9,8 +9,8 @@ const LANG = {
   cpp: {
     image: 'gcc:13',
     codeFile: 'solution.cpp',
-    compile: 'timeout 15 g++ -O2 -o /tmp/sol /code/solution.cpp 2>/code/_cerr.txt || { echo "__COMPILE_ERROR__"; cat /code/_cerr.txt; exit 1; }',
-    run: 'timeout 5 /tmp/sol',
+    compile: 'timeout 15 g++ -O2 -o /code/sol /code/solution.cpp 2>/code/_cerr.txt || { echo "__COMPILE_ERROR__"; cat /code/_cerr.txt; exit 1; }',
+    run: 'timeout 5 /code/sol',
   },
   python: {
     image: 'python:3.11-slim',
@@ -21,8 +21,8 @@ const LANG = {
   java: {
     image: 'eclipse-temurin:21-jdk-alpine',
     codeFile: 'Solution.java',
-    compile: 'timeout 15 javac /code/Solution.java -d /tmp 2>/code/_cerr.txt || { echo "__COMPILE_ERROR__"; cat /code/_cerr.txt; exit 1; }',
-    run: 'timeout 5 java -cp /tmp Solution',
+    compile: 'timeout 15 javac /code/Solution.java -d /code 2>/code/_cerr.txt || { echo "__COMPILE_ERROR__"; cat /code/_cerr.txt; exit 1; }',
+    run: 'timeout 5 java -cp /code Solution',
   },
   javascript: {
     image: 'node:20-slim',
