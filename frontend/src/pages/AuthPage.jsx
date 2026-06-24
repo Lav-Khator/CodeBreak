@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import { GoogleLogin } from '@react-oauth/google';
 
 /* ── tiny helpers ─────────────────────────────────────────────────────────────── */
 const API = '/api/auth';
@@ -462,33 +461,9 @@ export default function AuthPage({ onAuth }) {
           </button>
         </form>
 
-        {/* ── Divider ────────────────────────────────────────────────────────── */}
-        <div className="px-8 my-5 flex items-center gap-4">
-          <div className="flex-1 h-px bg-gradient-to-r from-transparent via-violet-800/40 to-transparent" />
-          <span className="text-xs text-slate-500 font-medium tracking-wider">OR CONTINUE WITH</span>
-          <div className="flex-1 h-px bg-gradient-to-r from-transparent via-violet-800/40 to-transparent" />
-        </div>
-
-        {/* ── Google OAuth ──────────────────────────────────────────────────── */}
-        <div className="px-8 pb-8">
-          <div
-            id="google-signin-btn"
-            className="w-full flex justify-center rounded-xl overflow-hidden border border-violet-900/30 hover:border-violet-600/50 transition-all duration-200 hover:shadow-lg hover:shadow-violet-900/20"
-          >
-            <GoogleLogin
-              onSuccess={handleGoogleSuccess}
-              onError={handleGoogleError}
-              useOneTap={false}
-              theme="filled_black"
-              shape="rectangular"
-              size="large"
-              text={mode === 'login' ? 'signin_with' : 'signup_with'}
-              width="356"
-            />
-          </div>
-
-          {/* Terms / switch mode */}
-          <div className="mt-5 text-center space-y-2">
+        {/* Terms / switch mode */}
+        <div className="px-8 pb-8 pt-4">
+          <div className="text-center space-y-2">
             {mode === 'register' && (
               <p className="text-xs text-slate-500">
                 By registering you agree to our{' '}
