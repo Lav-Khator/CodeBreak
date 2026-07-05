@@ -16,6 +16,8 @@ import BreakTheCodePage from './pages/BreakTheCodePage.jsx';
 import AdminPage        from './pages/AdminPage.jsx';
 import AddProblemPage   from './pages/AddProblemPage.jsx';
 
+axios.defaults.baseURL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
 /* ── Auth helpers ─────────────────────────────────────────────────────────── */
 function getStoredToken() { return localStorage.getItem('cb_token'); }
 function setStoredToken(token) {
